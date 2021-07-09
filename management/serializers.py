@@ -14,7 +14,8 @@ class AuthorSerializer(serializers.ModelSerializer):
 class BookSerializer(serializers.ModelSerializer):
     """ serializing book objects"""
     author = serializers.StringRelatedField(read_only=True)
-
+    # publisher_name = serializers.RelatedField(source='publisher', read_only=True)
+    publisher_name = serializers.CharField(source='publisher.name')
     class Meta:
         model = Book
         fields = '__all__'

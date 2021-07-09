@@ -3,9 +3,14 @@ from django.urls import reverse
 
 from rest_framework.test import APIClient
 from rest_framework import status
+from rest_framework.utils import json
 
 from .views import Author, Book, Publisher
 from .serializers import BookSerializer, AuthorSerializer, PublisherSerializer
+
+def detail_url(author_id):
+    """return recipe detail url"""
+    return reverse('author-books', args=[author_id])
 
 
 def sample_author(first_name='testfirstname', last_name='testlastname'):
@@ -16,9 +21,18 @@ def sample_publisher(name='testname', phone='09100000000', address='testaddress'
     """ create sample publisher object """
     return Publisher.objects.create(name=name, phone=phone, address=address)
 
-def sample_book(author, publisher, title='testtitle', page_number='1000'):
-    """ create sample book object """
-    return Book.objects.create(author=author, publisher=publisher, title=title, page_number=page_number)
+# def sample_book(title='testtitle', page_number='1000'):
+#     """ create sample book object """
+#     return Book.objects.create(title=title, page_number=page_number)
+
+def sample_book(publisher, **params):
+    """create and return a sampel book"""
+    defaults = {
+        'title': 'Sample Book',
+        'page_number': 10,
+    }
+    defaults.update(params)
+    return Book.objects.create(publisher=publisher, **defaults)
 
 
 class AuthorApiTests(TestCase):
@@ -28,7 +42,7 @@ class AuthorApiTests(TestCase):
         self.client = APIClient()
 
     def test_retrieve_authors(self):
-        """ test retrieving list of authors """
+        """ test for retrieving list of authors """
         sample_author()
         sample_author()
 
@@ -39,7 +53,7 @@ class AuthorApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
     def test_create_authors(self):
-        """ test create author objects """
+        """ test for creating author objects """
         payload = {
             'first_name': 'testname1',
             'last_name': 'testname2',
@@ -54,25 +68,57 @@ class AuthorApiTests(TestCase):
             self.assertEqual(payload[key], getattr(author, key))
 
 
-class AuthorsBookApiTests(TestCase):
-    """ tests for specific authors books """
+class BookApiTests(TestCase):
+    """ tests for book objects """
 
     def setUp(self):
         self.client = APIClient()
-        self.dastayoski = Author.objects.create(
-            first_name='something', last_name='something2', nickname='dastayoski'
+        self.publisher = Publisher.objects.create(
+            name='pubtest', phone='09100000000', address='testaddr'
         )
 
-    def test_retrieve_single_author(self):
-        """ test retrieve specific author """
-        author_est= sample_author()
-        publisher_test = sample_publisher()
-        sample_book(author=author_est, publisher=publisher_test)
-        res = self.client.get(reverse('author_books'), kwargs={'id': self.dastayoski.id})
-        author = Author.objects.get(id=self.dastayoski.id)
-        book = Book.objects.get(author=author)
-        # serializer = AuthorSerializer(author)
-        serializer = BookSerializer(book)
+    def test_retrieve_books(self):
+        """ test for retrieving book list objects """
+        book = sample_book(publisher=self.publisher)
+        book.author.add(sample_author())
+        # book.publisher.add(sample_publisher())
+
+        res = self.client.get(reverse('books'))
+        books = Book.objects.all()
+        serializer = BookSerializer(books, many=True)
         self.assertEqual(res.data, serializer.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
+    def test_create_books(self):
+        """ test create book objects """
+        author = sample_author()
+        payload = {
+            'title': 'test book',
+            'page_number': 10,
+            'author': [author.id,],
+        }
+
+        res = self.client.post(
+            reverse('books'),
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+
+class PublisherApiTest(TestCase):
+    """ tests for publisher objects """
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_retrieve_publishers(self):
+        """ tests for retrieving publisher list objects """
+        sample_publisher()
+        sample_publisher()
+
+        res = self.client.get(reverse('publishers'))
+        publishers = Publisher.objects.all()
+        serializer = PublisherSerializer(publishers, many=True)
+        self.assertEqual(res.data, serializer.data)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
